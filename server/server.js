@@ -3,6 +3,7 @@ import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import studentRoutes from './routes/studentRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -20,6 +21,7 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json()); // To parse JSON bodies from your axiosClient
+app.use('/student', studentRoutes);
 
 // ---------------------------------------------------------
 // 🚦 ROUTES (Matching your endpoints.js)
