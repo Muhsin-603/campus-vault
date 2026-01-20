@@ -5,6 +5,7 @@ const router = express.Router();
 
 router.get('/:userId', async (req, res) => {
     try {
+        console.log(req.params.userId)
         const notifications = await Notification.find({ userId: req.params.userId }).sort({ createdAt: -1 });
         res.json(notifications);
     } catch (error) {
