@@ -1,74 +1,82 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
-import dotenv from 'dotenv';
-import { fileToGenerativePart } from '../utils/imageParser.js';
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import dotenv from "dotenv";
+import fs from 'fs';
+const libPackage = JSON.parse(fs.readFileSync('./node_modules/@google/generative-ai/package.json', 'utf8'));
+console.log("⚠️ ACTUAL INSTALLED VERSION:", libPackage.version);
 
+// Ensure env vars are loaded
 dotenv.config();
 
-// Initialize Gemini
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+// Helper to format image for Gemini
+function fileToGenerativePart(file) {
+  return {
+    inlineData: {
+      data: file.buffer.toString("base64"),
+      mimeType: file.mimetype,
+    },
+  };
+}
 
 export const analyzeCertificate = async (req, res) => {
+  console.log("--- 🏁 START ANALYSIS ---");
+  
   try {
-    // 1. Check if file exists
-    if (!req.file) {
-      return res.status(400).json({ message: "No certificate image provided." });
+    if (!process.env.GEMINI_API_KEY) {
+      throw new Error("GEMINI_API_KEY is missing in .env");
     }
 
-    // 2. Prepare the image for Gemini
-    const imagePart = fileToGenerativePart(req.file);
+    if (!req.file) {
+      return res.status(400).json({ message: "No file uploaded." });
+    }
 
-    // 3. The "Forensic" Prompt
-    // We ask for strict JSON to avoid parsing headaches
+    console.log(`📸 Processing: ${req.file.originalname}`);
+
+    // Use the CORRECT model name
+    // Switching to the available 2.0 Flash model
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+
     const prompt = `
-      You are an expert Academic Auditor for KTU (University). 
-      Analyze this image of a student certificate.
-      
-      Extract the following details and perform a fraud check.
-      
-      1. **Event Details**: Name of event, Date, conducting authority.
-      2. **Points Calculation**: Estimate KTU Activity Points based on standard rules (e.g., Workshop=10-20, Internship=20+, Sports=10).
-      3. **Fraud Detection**: Look for pixelation, mismatched fonts, or signs of digital editing on dates/names.
-
-      Return the result as a strictly valid JSON object. Do not add markdown formatting like \`\`\`json.
-      
-      JSON Structure:
+      Analyze this academic certificate/document.
+      Extract these details strictly as JSON:
       {
-        "studentName": "String or null",
-        "eventName": "String",
-        "eventDate": "String (DD/MM/YYYY)",
-        "issuingAuthority": "String",
-        "predictedPoints": Integer,
-        "confidenceScore": Float (0.0 to 1.0),
+        "studentName": "Name of the student",
+        "eventName": "Name of event/workshop",
+        "eventDate": "Date in DD/MM/YYYY format",
+        "predictedPoints": "Number between 10-50 based on value",
         "fraudAnalysis": {
-          "isSuspicious": Boolean,
-          "riskLevel": "LOW" | "MEDIUM" | "HIGH",
-          "reason": "String explaining the risk"
+          "riskLevel": "LOW or HIGH",
+          "reason": "Brief reason for risk level",
+          "isSuspicious": boolean
         }
       }
+      RETURN ONLY JSON. NO MARKDOWN.
     `;
 
-    // 4. Call Gemini
+    console.log("🚀 Sending to Gemini 1.5 Flash...");
+    
+    const imagePart = fileToGenerativePart(req.file);
     const result = await model.generateContent([prompt, imagePart]);
     const response = await result.response;
     const text = response.text();
 
-    // 5. Clean and Parse JSON
-    // Sometimes Gemini wraps JSON in backticks, so we clean it.
+    console.log("🤖 Gemini Answered!");
+
+    // Clean up the response (Gemini loves adding ```json ... ```)
     const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    
     const data = JSON.parse(cleanedText);
 
-    // 6. Send back to Frontend
-    res.status(200).json({
-      success: true,
-      data: data
-    });
+    console.log("✅ Analysis Success:", data.predictedPoints, "Points");
+    res.status(200).json({ success: true, data: data });
 
   } catch (error) {
-    console.error("Gemini Error:", error);
+    console.error("💥 CRASH REPORT:", error.message);
     res.status(500).json({ 
-      message: "AI Analysis failed", 
-      error: error.message 
+      message: "AI Analysis Failed", 
+      error: error.message,
+      details: "Check Server Logs" 
     });
   }
 };

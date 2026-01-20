@@ -10,6 +10,7 @@ export const AUTH_ENDPOINTS = {
 export const STUDENT_ENDPOINTS = {
   GET_DASHBOARD: '/student/dashboard',
   UPLOAD_FILE: '/student/upload',
+  SUBMIT_CERTIFICATE: '/student/submit',
   GET_FILES: '/student/files',
   GET_FILE: '/student/files/:id'
 }

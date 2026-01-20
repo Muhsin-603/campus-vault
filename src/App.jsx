@@ -43,7 +43,8 @@ function AppRoutes() {
 
 export default function App() {
   return (
-    <Router>
+    // 👇 THIS IS THE FIX: We added the 'future' prop here
+    <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
       <AuthProvider>
         <AppRoutes />
       </AuthProvider>
