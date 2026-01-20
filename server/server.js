@@ -17,6 +17,7 @@ const PORT = process.env.PORT || 5000;
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+
 // Middleware
 app.use(cors({
   origin: 'http://localhost:3000', 
@@ -26,14 +27,20 @@ app.use(express.json());
 
 // --- 🔌 DATABASE CONNECTION ---
 // Make sure you add MONGODB_URI to your .env file!
-mongoose.connect(process.env.MONGODB_URI)
-  .then(() => console.log("✅ MongoDB Connected Successfully"))
-  .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// --- 🚦 ROUTES ---
-app.get('/', (req, res) => {
-  res.json({ message: 'Campus Vault Server is Running! 🚀' });
-});
+
+// 2. Debug: Print the URI (excluding the password) to verify it's loading
+const dbUri = process.env.MONGODB_URI;
+if (dbUri) {
+  console.log("🔌 Attempting to connect to:", dbUri.split('@')[1]); 
+} else {
+  console.error("❌ MONGODB_URI is missing from .env!");
+}
+
+// 3. Connect
+mongoose.connect(dbUri)
+  .then(() => console.log("✅ THE VAULT IS OPEN! MongoDB Connected Successfully."))
+  .catch(err => console.error("❌ MongoDB Connection Error:", err.message));
 
 app.use('/student', studentRoutes);
 app.use('/teacher', teacherRoutes); // <--- Wiring up the Boss Fight

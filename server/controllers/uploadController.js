@@ -73,12 +73,36 @@ export const analyzeCertificate = async (req, res) => {
     }
 
     console.log(`📸 Processing: ${req.file.originalname}`);
+    const category = req.body.category || "General Certificate"; 
+    console.log(`🎬 Scene Context: ${category}`);
 
     // Use Flash model for speed
     const model = genAI.getGenerativeModel({ 
         model: "gemini-flash-latest", 
         systemInstruction: "You are the Dean of Academics at KTU. You are strict, precise, and detect fraud instantly."
     });
+
+    let categoryInstruction = "";
+    
+    if (category === "duty_leave") {
+        categoryInstruction = `
+        CONTEXT: This is a DUTY LEAVE REQUEST.
+        FOCUS: Verify the event dates and the authorizing signature.
+        POINTS: Duty leave usually grants attendance, not activity points, unless specified. 
+        If it mentions a specific event (Hackathon/Sports), apply standard point rules.
+        `;
+    } else if (category === "internship") {
+        categoryInstruction = `
+        CONTEXT: This is an INTERNSHIP REPORT/CERTIFICATE.
+        FOCUS: Look for duration (Min 5 days required).
+        POINTS: If duration >= 5 days, grant 20 Points. Otherwise, 0.
+        `;
+    } else {
+        categoryInstruction = `
+        CONTEXT: This is a STANDARD ACTIVITY CERTIFICATE.
+        FOCUS: Event Name, Level (National/Zone), and Achievement (Winner/Participant).
+        `;
+    }
 
     const prompt = `
       Analyze this image against the following KTU Rules:
@@ -90,12 +114,15 @@ export const analyzeCertificate = async (req, res) => {
       3. Assign points STRICTLY based on the rulebook above.
       4. If the certificate is for an "Industrial Visit", give exactly 5 points.
       5. If it is an "Internship", give exactly 20 points.
+      6. Verify if the document matches the selected category (${category}).
+      7. Extract Student Name and Event Details.
 
       Return ONLY JSON in this format:
       {
         "studentName": "Name of student",
         "eventName": "Name of event",
         "eventDate": "DD/MM/YYYY",
+        "category": "${category}",
         "predictedPoints": Number (0 if invalid),
         "fraudAnalysis": {
           "riskLevel": "LOW" or "HIGH",

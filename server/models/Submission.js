@@ -16,6 +16,12 @@ const submissionSchema = new mongoose.Schema({
     isSuspicious: { type: Boolean, default: false }
   },
 
+  category: { 
+    type: String, 
+    enum: ['certificate', 'duty_leave', 'internship', 'mooc', 'sports'],
+    default: 'certificate'
+  },
+
   // Status for the Teacher Dashboard
   status: { 
     type: String, 
