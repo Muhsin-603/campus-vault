@@ -1,9 +1,11 @@
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import mongoose from 'mongoose'; // <--- New Import
 import path from 'path';
 import { fileURLToPath } from 'url';
 import studentRoutes from './routes/studentRoutes.js';
+import teacherRoutes from './routes/teacherRoutes.js'; // <--- New Import
 
 // Load environment variables
 dotenv.config();
@@ -16,31 +18,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Middleware
-// server/server.js
 app.use(cors({
-  origin: 'http://localhost:3000', // Changed from 5173 to 3000 to match vite.config.js
+  origin: 'http://localhost:3000', 
   credentials: true
 }));
-app.use(express.json()); // To parse JSON bodies from your axiosClient
-app.use('/student', studentRoutes);
+app.use(express.json()); 
 
-// ---------------------------------------------------------
-// 🚦 ROUTES (Matching your endpoints.js)
-// ---------------------------------------------------------
+// --- 🔌 DATABASE CONNECTION ---
+// Make sure you add MONGODB_URI to your .env file!
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log("✅ MongoDB Connected Successfully"))
+  .catch(err => console.error("❌ MongoDB Connection Error:", err));
 
-// Health Check (To test if connection is working)
+// --- 🚦 ROUTES ---
 app.get('/', (req, res) => {
   res.json({ message: 'Campus Vault Server is Running! 🚀' });
 });
 
-// Import Routes (We will create these next)
-// import authRoutes from './routes/authRoutes.js';
-// import studentRoutes from './routes/studentRoutes.js';
-
-// app.use('/auth', authRoutes);       <-- Matches AUTH_ENDPOINTS in client
-// app.use('/student', studentRoutes); <-- Matches STUDENT_ENDPOINTS in client
-
-// ---------------------------------------------------------
+app.use('/student', studentRoutes);
+app.use('/teacher', teacherRoutes); // <--- Wiring up the Boss Fight
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

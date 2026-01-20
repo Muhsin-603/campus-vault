@@ -1,8 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
 import fs from 'fs';
-const libPackage = JSON.parse(fs.readFileSync('./node_modules/@google/generative-ai/package.json', 'utf8'));
-console.log("⚠️ ACTUAL INSTALLED VERSION:", libPackage.version);
 
 // Ensure env vars are loaded
 dotenv.config();
@@ -19,8 +17,51 @@ function fileToGenerativePart(file) {
   };
 }
 
+// 📜 THE OFFICIAL KTU RULEBOOK (Hardcoded for Speed)
+const KTU_RULES = `
+OFFICIAL KTU ACTIVITY POINT REGULATIONS (Reference: B.Tech 2019/2024 Scheme):
+
+1. **NATIONAL INITIATIVES (NCC/NSS)**
+   - NSS/NCC Participation (2 years): 60 Points (Max)
+   - "C" Certificate/Outstanding Performance: +20 Points (Max 80)
+
+2. **SPORTS & GAMES**
+   - Participation (College Level): 8 Points
+   - Participation (Zonal/State): 15 Points
+   - Participation (University): 25 Points
+   - Participation (National): 40 Points
+   - Participation (International): 60 Points
+   - *Winner (1st/2nd/3rd)*: Add +10/8/5 Points extra.
+
+3. **PROFESSIONAL INITIATIVES (Tech Fests/Workshops)**
+   - Tech Fest/Quiz Participation (College): 10 Points
+   - Tech Fest/Quiz (Zonal): 20 Points
+   - Tech Fest/Quiz (National/IIT/NIT): 40 Points
+   - MOOC Course (with Certificate): 50 Points
+   - Workshop/Seminar/STTP (at IIT/NIT): 20 Points
+   - Workshop/Seminar (at KTU affiliated colleges): 12 Points
+   - Paper Presentation (IIT/NIT): 30 Points
+   - Paper Presentation (KTU Colleges): 16 Points
+
+4. **INDUSTRY INTERACTION**
+   - Internship (Min 5 full days): 20 Points
+   - Industrial Visit (IV): 5 Points (Max 10 points total allowed)
+
+5. **ENTREPRENEURSHIP**
+   - Registered Startup: 60 Points
+   - Patent Filed: 30 Points | Published: 35 Points | Approved: 50 Points
+
+6. **LEADERSHIP**
+   - Core Coordinator (Student Societies/Fests): 15 Points
+   - Chairman (Student Union): 30 Points | Secretary: 25 Points
+
+⚠️ **FRAUD DETECTION PROTOCOL:**
+- If the image is NOT a valid certificate (e.g., selfie, blurry, food, random screenshot), RETURN "predictedPoints": 0 and "isSuspicious": true.
+- If the certificate looks fake (edited text, mismatched fonts), FLAG AS HIGH RISK.
+`;
+
 export const analyzeCertificate = async (req, res) => {
-  console.log("--- 🏁 START ANALYSIS ---");
+  console.log("--- 🏁 START ANALYSIS (KTU PROTOCOL) ---");
   
   try {
     if (!process.env.GEMINI_API_KEY) {
@@ -33,28 +74,38 @@ export const analyzeCertificate = async (req, res) => {
 
     console.log(`📸 Processing: ${req.file.originalname}`);
 
-    // Use the CORRECT model name
-    // Switching to the available 2.0 Flash model
-    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
+    // Use Flash model for speed
+    const model = genAI.getGenerativeModel({ 
+        model: "gemini-flash-latest", 
+        systemInstruction: "You are the Dean of Academics at KTU. You are strict, precise, and detect fraud instantly."
+    });
 
     const prompt = `
-      Analyze this academic certificate/document.
-      Extract these details strictly as JSON:
+      Analyze this image against the following KTU Rules:
+      ${KTU_RULES}
+
+      Task:
+      1. Identify the Activity Type (Internship, Workshop, Sports, etc.).
+      2. Determine the 'Level' (College, Zonal, National).
+      3. Assign points STRICTLY based on the rulebook above.
+      4. If the certificate is for an "Industrial Visit", give exactly 5 points.
+      5. If it is an "Internship", give exactly 20 points.
+
+      Return ONLY JSON in this format:
       {
-        "studentName": "Name of the student",
-        "eventName": "Name of event/workshop",
-        "eventDate": "Date in DD/MM/YYYY format",
-        "predictedPoints": "Number between 10-50 based on value",
+        "studentName": "Name of student",
+        "eventName": "Name of event",
+        "eventDate": "DD/MM/YYYY",
+        "predictedPoints": Number (0 if invalid),
         "fraudAnalysis": {
-          "riskLevel": "LOW or HIGH",
-          "reason": "Brief reason for risk level",
+          "riskLevel": "LOW" or "HIGH",
+          "reason": "Why did you assign these points?",
           "isSuspicious": boolean
         }
       }
-      RETURN ONLY JSON. NO MARKDOWN.
     `;
 
-    console.log("🚀 Sending to Gemini 1.5 Flash...");
+    console.log("🚀 Sending to Gemini...");
     
     const imagePart = fileToGenerativePart(req.file);
     const result = await model.generateContent([prompt, imagePart]);
@@ -63,20 +114,24 @@ export const analyzeCertificate = async (req, res) => {
 
     console.log("🤖 Gemini Answered!");
 
-    // Clean up the response (Gemini loves adding ```json ... ```)
+    // Clean JSON
     const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    
     const data = JSON.parse(cleanedText);
 
-    console.log("✅ Analysis Success:", data.predictedPoints, "Points");
+    // 🛡️ The Bouncer Logic
+    if (data.fraudAnalysis.isSuspicious) {
+        data.predictedPoints = 0;
+        console.log("🚫 BLOCKED: Document flagged as suspicious.");
+    }
+
+    console.log(`✅ Verdict: ${data.predictedPoints} Points for ${data.eventName}`);
     res.status(200).json({ success: true, data: data });
 
   } catch (error) {
     console.error("💥 CRASH REPORT:", error.message);
     res.status(500).json({ 
       message: "AI Analysis Failed", 
-      error: error.message,
-      details: "Check Server Logs" 
+      error: error.message 
     });
   }
 };
