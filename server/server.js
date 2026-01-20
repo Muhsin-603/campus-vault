@@ -16,8 +16,9 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 // Middleware
+// server/server.js
 app.use(cors({
-  origin: 'http://localhost:5173', // Matches your Vite default port
+  origin: 'http://localhost:3000', // Changed from 5173 to 3000 to match vite.config.js
   credentials: true
 }));
 app.use(express.json()); // To parse JSON bodies from your axiosClient
