@@ -6,6 +6,7 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import studentRoutes from './routes/studentRoutes.js';
 import teacherRoutes from './routes/teacherRoutes.js'; // <--- New Import
+import notificationRoutes from './routes/notificationRoutes.js';
 
 // Load environment variables
 dotenv.config();
@@ -44,6 +45,7 @@ mongoose.connect(dbUri)
 
 app.use('/student', studentRoutes);
 app.use('/teacher', teacherRoutes); // <--- Wiring up the Boss Fight
+app.use('/notifications', notificationRoutes);
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);

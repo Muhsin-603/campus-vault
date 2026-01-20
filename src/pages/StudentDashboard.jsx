@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { useFileUpload } from '../hooks/useFileUpload';
 import axiosClient from '../api/axiosClient';
 import { STUDENT_ENDPOINTS } from '../api/endpoints';
+import NotificationBell from '../components/common/NotificationBell';
 
 export default function StudentDashboard() {
   const { user, logout } = useAuth();
@@ -75,6 +76,22 @@ export default function StudentDashboard() {
             CAMPUS<span className="text-cyan-400">VAULT</span>
           </h1>
           <p className="text-gray-400 text-sm italic">Point Verification Protocol v2.0</p>
+        </div>
+        <div className="flex items-center gap-6">
+          
+          {/* 👇 ADD THIS LINE RIGHT HERE! */}
+          <NotificationBell />
+
+          <div className="text-right hidden md:block">
+            <p className="text-gray-500 text-xs uppercase tracking-widest">Operator</p>
+            <p className="text-cyan-400 font-mono text-sm">{user?.name}</p>
+          </div>
+          <button 
+            onClick={logout}
+            className="px-4 py-2 rounded-lg border border-gray-700 hover:bg-gray-800 text-sm transition-all"
+          >
+            Disconnect
+          </button>
         </div>
         
         <div className="flex items-center gap-6">
