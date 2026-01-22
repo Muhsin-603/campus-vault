@@ -9,6 +9,7 @@ const submissionSchema = new mongoose.Schema({
   eventDate: { type: String, required: true },
   predictedPoints: { type: Number, required: true },
   
+  timeRange: { type: String, default: "Unknown" },
   // Fraud check details
   fraudAnalysis: {
     riskLevel: { type: String, enum: ['LOW', 'HIGH'], default: 'LOW' },

@@ -18,9 +18,13 @@ export const STUDENT_ENDPOINTS = {
 // Teacher endpoints
 export const TEACHER_ENDPOINTS = {
   GET_DASHBOARD: '/teacher/dashboard',
-  GET_SUBMISSIONS: '/teacher/submissions',
-  APPROVE_SUBMISSION: '/teacher/submissions/:id/approve',
-  REJECT_SUBMISSION: '/teacher/submissions/:id/reject',
+  
+  // ✅ The missing link! This gets the list.
+  GET_PENDING: '/teacher/submissions?status=PENDING', 
+  
+  // ✅ The generic verify route (handles both Approve & Reject)
+  VERIFY_SUBMISSION: '/teacher/verify',
+  
   GET_FRAUD_ALERTS: '/teacher/fraud-alerts'
 }
 
