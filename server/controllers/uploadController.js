@@ -1,13 +1,10 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import dotenv from "dotenv";
-import fs from 'fs';
 
-// Ensure env vars are loaded
 dotenv.config();
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-// Helper to format image for Gemini
 function fileToGenerativePart(file) {
   return {
     inlineData: {
@@ -17,7 +14,7 @@ function fileToGenerativePart(file) {
   };
 }
 
-// 📜 THE OFFICIAL KTU RULEBOOK (Hardcoded for Speed)
+// 📜 THE OFFICIAL KTU RULEBOOK
 const KTU_RULES = `
 OFFICIAL KTU ACTIVITY POINT REGULATIONS (Reference: B.Tech 2019/2024 Scheme):
 
@@ -76,20 +73,20 @@ export const analyzeCertificate = async (req, res) => {
     const category = req.body.category || "General Certificate"; 
     console.log(`🎬 Scene Context: ${category}`);
 
-    // Use Flash model for speed
-    const model = genAI.getGenerativeModel({ 
-        model: "gemini-flash-latest", 
-        systemInstruction: "You are the Dean of Academics at KTU. You are strict, precise, and detect fraud instantly."
-    });
+   // 👇 The Evergreen "Flash" model (Best for speed & free tier limits)
+    const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
     let categoryInstruction = "";
     
+    // 👇 Context Logic
     if (category === "duty_leave") {
-        categoryInstruction = `
+        context = `
         CONTEXT: This is a DUTY LEAVE REQUEST.
-        FOCUS: Verify the event dates and the authorizing signature.
-        POINTS: Duty leave usually grants attendance, not activity points, unless specified. 
-        If it mentions a specific event (Hackathon/Sports), apply standard point rules.
+        TASK:
+        1. VERIFY SIGNATURE: Look for a Principal's or Faculty Advisor's signature/seal. If missing, flag as SUSPICIOUS.
+        2. VERIFY DETAILS: Ensure Student Name, Event Name, and Dates are clearly visible.
+        3. POINTS: ALWAYS return 0 (Zero). This is for attendance only.
+        4. REASON: If valid, set reason to "Verified: Signed by Authority". If invalid, "Rejected: Missing Signature/Details".
         `;
     } else if (category === "internship") {
         categoryInstruction = `
@@ -108,14 +105,14 @@ export const analyzeCertificate = async (req, res) => {
       Analyze this image against the following KTU Rules:
       ${KTU_RULES}
 
+      Specific Instructions for this Category (${category}):
+      ${categoryInstruction}
+
       Task:
-      1. Identify the Activity Type (Internship, Workshop, Sports, etc.).
-      2. Determine the 'Level' (College, Zonal, National).
-      3. Assign points STRICTLY based on the rulebook above.
-      4. If the certificate is for an "Industrial Visit", give exactly 5 points.
-      5. If it is an "Internship", give exactly 20 points.
-      6. Verify if the document matches the selected category (${category}).
-      7. Extract Student Name and Event Details.
+      1. Identify the Activity Type.
+      2. Extract Student Name, Event Name, and Event Date.
+      3. Assign points STRICTLY based on the rulebook (or 0 if Duty Leave).
+      4. Check for fraud/suspicious documents.
 
       Return ONLY JSON in this format:
       {
@@ -123,7 +120,7 @@ export const analyzeCertificate = async (req, res) => {
         "eventName": "Name of event",
         "eventDate": "DD/MM/YYYY",
         "category": "${category}",
-        "predictedPoints": Number (0 if invalid),
+        "predictedPoints": Number,
         "fraudAnalysis": {
           "riskLevel": "LOW" or "HIGH",
           "reason": "Why did you assign these points?",
@@ -141,11 +138,23 @@ export const analyzeCertificate = async (req, res) => {
 
     console.log("🤖 Gemini Answered!");
 
-    // Clean JSON
-    const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    const data = JSON.parse(cleanedText);
+    // 🛡️ JSON PARSE SAFETY NET
+    let data;
+    try {
+        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
+        data = JSON.parse(cleanedText);
+    } catch (parseError) {
+        console.error("⚠️ AI JSON Parse Error. Raw text:", text);
+        throw new Error("AI returned invalid data format.");
+    }
 
-    // 🛡️ The Bouncer Logic
+    // Safety Lock for Duty Leave
+    if (category === "duty_leave") {
+        data.predictedPoints = 0;
+        data.fraudAnalysis.reason = "Duty Leave Request - Attendance Only (0 Points)";
+    }
+
+    // Bouncer Logic
     if (data.fraudAnalysis.isSuspicious) {
         data.predictedPoints = 0;
         console.log("🚫 BLOCKED: Document flagged as suspicious.");

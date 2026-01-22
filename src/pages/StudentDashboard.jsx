@@ -215,14 +215,22 @@ export default function StudentDashboard() {
                 </div>
               </div>
 
-              <div className="p-8">
-                <div className="grid grid-cols-2 gap-4 mb-6">
+             <div className="p-8">
+                {/* 👇 UI UPDATE: DYNAMIC GRID */}
+                <div className={`grid gap-4 mb-6 ${category === 'duty_leave' ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                  
+                  {/* HIDE POINTS IF DUTY LEAVE */}
+                  {category !== 'duty_leave' && (
+                    <div className="bg-gray-950 p-4 rounded-xl border border-gray-800">
+                      <span className="text-[10px] text-gray-500 uppercase tracking-widest">Points</span>
+                      <p className="text-3xl font-bold text-cyan-400">+{analysisResult.predictedPoints}</p>
+                    </div>
+                  )}
+
                   <div className="bg-gray-950 p-4 rounded-xl border border-gray-800">
-                    <span className="text-[10px] text-gray-500 uppercase tracking-widest">Points</span>
-                    <p className="text-3xl font-bold text-cyan-400">+{analysisResult.predictedPoints}</p>
-                  </div>
-                  <div className="bg-gray-950 p-4 rounded-xl border border-gray-800">
-                    <span className="text-[10px] text-gray-500 uppercase tracking-widest">Event Date</span>
+                    <span className="text-[10px] text-gray-500 uppercase tracking-widest">
+                      {category === 'duty_leave' ? 'Attendance Date' : 'Event Date'}
+                    </span>
                     <p className="text-lg font-semibold text-white mt-2">{analysisResult.eventDate}</p>
                   </div>
                 </div>
@@ -232,8 +240,26 @@ export default function StudentDashboard() {
                   <p className="font-semibold text-gray-200 mt-1">{analysisResult.eventName}</p>
                 </div>
 
-                {/* Fraud Warning */}
-                {analysisResult.fraudAnalysis?.isSuspicious && (
+               {/* 👇 UPDATE: STATUS = PENDING & REMOVED DESCRIPTION */}
+                {category === 'duty_leave' && (
+                    <div className={`p-4 rounded-xl border mb-6 ${
+                        analysisResult.fraudAnalysis?.isSuspicious 
+                        ? 'bg-red-500/10 border-red-500/30 text-red-400' 
+                        : 'bg-yellow-500/10 border-yellow-500/30 text-yellow-400'
+                    }`}>
+                        <span className="text-[10px] uppercase tracking-widest font-bold block mb-1">
+                            Status
+                        </span>
+                        <p className="font-bold flex items-center gap-2">
+                            {analysisResult.fraudAnalysis?.isSuspicious 
+                                ? "❌ REJECTED (Suspicious)" 
+                                : "⏳ PENDING APPROVAL"}
+                        </p>
+                        {/* Description Paragraph Removed */}
+                    </div>
+                )}
+
+                {category !== 'duty_leave' && analysisResult.fraudAnalysis?.isSuspicious && (
                   <div className="p-4 bg-red-500/10 border border-red-500/30 rounded-xl mb-6">
                     <p className="text-red-400 text-sm">
                       <strong className="block mb-1 text-red-300">⚠️ Flagged by Gemini:</strong> 
