@@ -68,7 +68,7 @@ export const analyzeCertificate = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ message: "No file uploaded." });
     }
-
+    let strictContext = "";
     console.log(`📸 Processing: ${req.file.originalname}`);
     const category = req.body.category || "General Certificate"; 
     console.log(`🎬 Scene Context: ${category}`);
@@ -76,55 +76,96 @@ export const analyzeCertificate = async (req, res) => {
    // 👇 The Evergreen "Flash" model (Best for speed & free tier limits)
     const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
-    let categoryInstruction = "";
+    
     
     // 👇 Context Logic
     if (category === "duty_leave") {
-        context = `
-        CONTEXT: This is a DUTY LEAVE REQUEST.
-        TASK:
-        1. VERIFY SIGNATURE: Look for a Principal's or Faculty Advisor's signature/seal. If missing, flag as SUSPICIOUS.
-        2. VERIFY DETAILS: Ensure Student Name, Event Name, and Dates are clearly visible.
-        3. POINTS: ALWAYS return 0 (Zero). This is for attendance only.
-        4. REASON: If valid, set reason to "Verified: Signed by Authority". If invalid, "Rejected: Missing Signature/Details".
+        strictContext = `
+        MODE: DUTY LEAVE VERIFICATION
+        ⚠️ CRITICAL CHECKS:
+        1. MUST contain keywords: "Duty Leave", "On Duty", "O.D.", "Attendance".
+        2. MUST have a SIGNATURE/SEAL.
+        3. 🕵️‍♀️ TIME HUNT:
+           - Scan for "Period" (e.g., "P 4-6", "Period 5"). Assume 1 Period = 1 Hr.
+           - Scan for "Hour" (e.g., "2 Hrs", "3 Hours").
+           - Scan for Times (e.g., "10 am to 1 pm").
+           - IF FOUND: Put it in 'timeRange'.
+           - IF IMPLICIT (e.g., "Full Day"): Put "Full Day".
+        LOGIC:
+        - FORCE 0 POINTS.
+        - Verified Signature -> Status: "VERIFIED".
         `;
     } else if (category === "internship") {
-        categoryInstruction = `
-        CONTEXT: This is an INTERNSHIP REPORT/CERTIFICATE.
-        FOCUS: Look for duration (Min 5 days required).
-        POINTS: If duration >= 5 days, grant 20 Points. Otherwise, 0.
+        strictContext = `
+        MODE: INTERNSHIP AUDIT
+        ⚠️ CRITICAL CHECKS:
+        1. MUST contain keywords: "Internship", "Completed", "Training", "Industrial Visit".
+        2. MUST show DURATION (Start Date AND End Date, or "X Days/Weeks").
+        3. IGNORE logos, ID cards, or screenshots of emails.
+        LOGIC:
+        - If "Industrial Visit" or "IV" -> 5 Points.
+        - If "Internship" AND Duration >= 5 Days -> 20 Points.
+        - If Duration < 5 Days -> 0 Points (Reason: Duration too short).
+        - If NO dates found -> 0 Points (Reason: Invalid Internship Proof).
         `;
+    }
+    else if(category === "mooc"){
+      strictContext = `
+        MODE: MOOC / COURSE AUDIT
+        ⚠️ CRITICAL CHECKS:
+        1. Platform Names: "NPTEL", "Coursera", "Udemy", "EdX", "Infosys Springboard".
+        2. Keywords: "Certificate of Completion", "Successfully Completed".
+        LOGIC:
+        - If valid certificate -> 50 Points.
+        - If just a screenshot of a dashboard/progress bar -> 0 Points (Reason: Not a Certificate).
+        `;
+    }
+    else if (category === "sports") {
+        strictContext = `
+        MODE: SPORTS AUDIT
+        ⚠️ CRITICAL CHECKS:
+        1. Keywords: "First Place", "Runner up", "Participation", "Meet", "Tournament".
+        2. Level: Identify if College, Zonal, or National.
+        LOGIC:
+        - Assign points based on Level + Achievement.
+        - Reject generic gym selfies or jersey photos.
+        `;
+
     } else {
-        categoryInstruction = `
-        CONTEXT: This is a STANDARD ACTIVITY CERTIFICATE.
-        FOCUS: Event Name, Level (National/Zone), and Achievement (Winner/Participant).
+        strictContext = `
+        MODE: GENERAL CERTIFICATE AUDIT
+        ⚠️ CRITICAL CHECKS:
+        1. Keywords: "Certificate of Appreciation", "Merit", "Participation".
+        2. Reject generic images, logos, or blurry photos.
         `;
     }
 
     const prompt = `
-      Analyze this image against the following KTU Rules:
+      You are a strict Forensic Document Auditor. 
+      Your job is to reject invalid files (logos, selfies, screenshots) and rate valid ones.
+      Also verify the KTU RULES:
       ${KTU_RULES}
 
-      Specific Instructions for this Category (${category}):
-      ${categoryInstruction}
+      CURRENT CATEGORY: ${category.toUpperCase()}
+      ${strictContext}
 
-      Task:
-      1. Identify the Activity Type.
-      2. Extract Student Name, Event Name, and Event Date.
-      3. Assign points STRICTLY based on the rulebook (or 0 if Duty Leave).
-      4. Check for fraud/suspicious documents.
+      TASK:
+      1. IS_DOCUMENT_VALID? (Boolean): Check if this is a real document. 
+         - If it's just a logo, cartoon, selfie, or random object -> FALSE.
+         - If text is unreadable -> FALSE.
+      2. EXTRACT DETAILS: Student Name, Event, Dates.
+      3. CALCULATE POINTS: Apply the rules above strictly.
 
-      Return ONLY JSON in this format:
+      OUTPUT JSON ONLY:
       {
-        "studentName": "Name of student",
-        "eventName": "Name of event",
-        "eventDate": "DD/MM/YYYY",
-        "category": "${category}",
+        "studentName": "String (or 'Unknown')",
+        "eventName": "String (or 'Unknown')",
+        "eventDate": "String (or 'Unknown')",
         "predictedPoints": Number,
-        "fraudAnalysis": {
-          "riskLevel": "LOW" or "HIGH",
-          "reason": "Why did you assign these points?",
-          "isSuspicious": boolean
+        "fraudAnalysis": { 
+            "riskLevel": "LOW" or "HIGH", 
+            "isSuspicious": Boolean,
+            "reason": "Clear explanation (e.g., 'Rejected: Image is just a logo', 'Verified: 5-Day Internship')" 
         }
       }
     `;
@@ -139,19 +180,55 @@ export const analyzeCertificate = async (req, res) => {
     console.log("🤖 Gemini Answered!");
 
     // 🛡️ JSON PARSE SAFETY NET
+    
     let data;
     try {
-        const cleanedText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        data = JSON.parse(cleanedText);
-    } catch (parseError) {
-        console.error("⚠️ AI JSON Parse Error. Raw text:", text);
-        throw new Error("AI returned invalid data format.");
+      // Find the first '{' and the last '}'
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      
+      if (!jsonMatch) {
+          throw new Error("No JSON object found in AI response");
+      }
+
+      // Parse ONLY the matched part
+      data = JSON.parse(jsonMatch[0]);
+
+    } catch (e) {
+      console.error("⚠️ JSON Parse Failed. AI Text:", text);
+      return res.status(500).json({ message: "AI Analysis Failed (Invalid Format)" });
     }
 
     // Safety Lock for Duty Leave
     if (category === "duty_leave") {
         data.predictedPoints = 0;
-        data.fraudAnalysis.reason = "Duty Leave Request - Attendance Only (0 Points)";
+        if (!data.fraudAnalysis.isSuspicious) {
+            data.fraudAnalysis.reason = "Attendance Verified (Signature Found)";
+        }
+
+        // 1. Clean up existing timeRange
+        if (data.timeRange && data.timeRange !== "null" && data.timeRange !== "Unknown") {
+             data.timeRange = data.timeRange.trim();
+        } 
+        
+        // 2. RESCUE MISSION: If Unknown, check the "Reason" text for clues
+        if (!data.timeRange || data.timeRange === "Unknown" || data.timeRange === "null") {
+            const reasonText = JSON.stringify(data.fraudAnalysis.reason || "") + JSON.stringify(text);
+            
+            // Regex to find "X Hrs" or "Period X-Y" inside the AI's explanation
+            const hoursMatch = reasonText.match(/(\d+)\s*Hrs/i);
+            const periodMatch = reasonText.match(/Period\s*(\d+)/i);
+            const fullDayMatch = reasonText.match(/Full\s*Day/i);
+
+            if (hoursMatch) {
+                data.timeRange = `${hoursMatch[1]} Hours (Rescued)`;
+            } else if (periodMatch) {
+                data.timeRange = `Period ${periodMatch[1]} (Rescued)`;
+            } else if (fullDayMatch) {
+                data.timeRange = "Full Day";
+            } else {
+                data.timeRange = "Unknown"; // Truly gave up
+            }
+        }
     }
 
     // Bouncer Logic

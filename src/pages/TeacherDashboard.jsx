@@ -13,34 +13,44 @@ export default function TeacherDashboard() {
   const { user, logout } = useAuth();
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedItem, setSelectedItem] = useState(null);
 
+  useEffect(() => {
+    fetchSubmissions();
+  }, []);
   // Fetch Submissions on Load
   const fetchSubmissions = async () => {
     try {
-      const response = await axiosClient.get(TEACHER_ENDPOINTS.GET_SUBMISSIONS);
-      setSubmissions(response.data);
-    } catch (err) {
-      console.error("Failed to load:", err);
+      const { data } = await axiosClient.get(TEACHER_ENDPOINTS.GET_PENDING);
+      setSubmissions(data.data || []);
+    } catch (error) {
+      console.error("Failed to fetch:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  useEffect(() => {
-    fetchSubmissions();
-  }, []);
 
   // Action Handlers
-  const handleAction = async (id, action) => {
-    try {
-      const endpoint = action === 'approve'
-        ? TEACHER_ENDPOINTS.APPROVE_SUBMISSION
-        : TEACHER_ENDPOINTS.REJECT_SUBMISSION;
+  const handleVerdict = async (status) => {
+    if (!selectedItem) return;
+    setActionLoading(true);
 
-      await axiosClient.post(endpoint.replace(':id', id));
-      fetchSubmissions(); // Refresh the list
-    } catch (err) {
-      alert(`Failed to ${action} submission.`);
+    try {
+      await axiosClient.post(TEACHER_ENDPOINTS.VERIFY_SUBMISSION, {
+        id: selectedItem._id,
+        status: status, // 'APPROVED' or 'REJECTED'
+        adminComment: status === 'APPROVED' ? 'Verified by Faculty' : 'Rejected: Document Invalid'
+      });
+
+      // Refresh list and close modal
+      setSubmissions(prev => prev.filter(item => item._id !== selectedItem._id));
+      setSelectedItem(null);
+      alert(status === 'APPROVED' ? "✅ Submission Approved!" : "🚫 Submission Rejected.");
+    } catch (error) {
+      alert("Action Failed: " + error.message);
+    } finally {
+      setActionLoading(false);
     }
   };
 
